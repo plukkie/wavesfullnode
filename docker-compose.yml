@@ -1,0 +1,17 @@
+services:
+  waves:
+    image: ${wavesdockerimage}:${wavesimagetag}
+    ports:
+      - "${wavesserverip}:${nodeport}:${nodeport}"
+      - "${apiserverip}:${apiport}:${apiport}"
+    volumes:
+      - "${wavesconfpath}:/etc/waves"
+      - "${wavespath}:/var/lib/waves"
+
+    environment:
+      #- WAVES_WALLET_PASSWORD=Wallet_Password_Test
+      - WAVES_NETWORK=${stage}
+      - JAVA_OPTS= -Dwaves.rest-api.enable=yes
+                   -Dwaves.rest-api.port=${apiport}
+                   -Dwaves.rest-api.bind-address=${apiserverip}
+                   -Dwaves.network.declared-address=${declaredaddress}:${nodeport}
