@@ -1,5 +1,6 @@
 services:
   waves:
+    restart: unless-stopped
     image: ${wavesdockerimage}:${wavesimagetag}
     ports:
       - "${wavesserverip}:${nodeport}:${nodeport}"
