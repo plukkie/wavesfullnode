@@ -32,14 +32,13 @@ blockchain=${wavesdomain}/${blockchainfile}
 blockchainhash=${wavesdomain}/${blockchainhashfile}
 myhashfile=${blockchainfile}.my${hashextension}
 wavesdockerimage=`grep "wavesdockerimage=" $ef | $cut $cc`
-wavesconfpath=`grep "wavesconfpath=" $cf | $cut $cc`
+wavesconfpath=`grep "wavesconfpath=" $ef | $cut $cc`
 wavesconffile=`grep "wavesconffile=" $cf | $cut $cc`
 walletfile=`grep "walletfile=" $cf | $cut $cc`
 imagetag=`grep "wavesimagetag=" $ef | $cut $cc`
 wavesconf=$wavesconfpath/$wavesconffile
 wavesgitpath=`grep "wavesgitpath=" $cf | $cut $cc`
 apiport=`grep "apiport=" $ef | $cut $cc`
-dep_array=`grep "dependency_array=" $cf | $cut $cc | sed 's/(//' | sed 's/)//'` && dep_array=(${dep_array// / })
 continued=false
 statefullimport=false
 keepconfig=true
@@ -95,7 +94,7 @@ function startup_mode {
 		echo -e "\n Welcome to waves installer. Your tool to install, upgrade and statefull ledger import."
 		echo -e " usage : $0 <option>\n"
 		echo -e " <option> :\n ----------\n"
-		echo -e " install native <version>	: Installs debian package for specified version from mainne.t"
+		echo -e " install native <version>	: Installs debian package for specified version from mainnet"
 		echo -e "                                  i.e.: $0 install native 1.2.17"
 		echo -e "                                  A previous version will be uninstalled automatically."
 		echo -e "                                  You can choose to keep the current waves config or"
@@ -117,27 +116,8 @@ function startup_mode {
 	elif [[ $arg1 == "install" ]] && [[ $arg2 == "native" ]] && [[ $arg3 != '' ]]; then
 
 		installtype=native
-		elements=${#dep_array[@]}  ##How many software dependencies found
-		
-		if [[ $elements > 0 ]]; then
 
-			echo -e "\nChecking software dependencies needed..." && sleep 1
-			echo -e "Running apt-get update..." && sleep 1
-			sudo $au update
-
-			for softpackage in "${dep_array[@]}"
-				do
-    				local result=`$dpkg -l $softpackage`
-				
-				if [[ ${#result} == 0 ]]; then 
-					echo -e "$softpackage missing. Installing...\n" && sleep 1
-					sudo $au install $softpackage
-					echo
-				else
-					echo -e "$softpackage is installed...OK\n" && sleep 1
-				fi
-			done
-		fi
+		dependency_check native
 
 		echo -e "\nStarting native waves installation for version $arg3\n" && sleep 1
 		local result=`$dpkg -l $wavesservice`
@@ -168,7 +148,20 @@ function startup_mode {
 	elif [[ $arg1 == "install" ]] && [[ $arg2 == "container" ]]; then  ##install container
 
 		if [[ $arg3 == '' ]]; then arg3=latest; fi
-		
+	
+		if [[ ${#docker} == 0 ]]; then ## Docker is not installed
+			echo
+			echo "Docker seems not installed on system."
+			echo "Also docker-compose is needed."
+			echo "Please install first and then run script again."
+			echo "Here are the ubuntu pages for docker : https://docs.docker.com/engine/install/ubuntu/"
+			echo "Here are the pages for docker-compose : https://docs.docker.com/compose/install/"
+			echo
+			exit
+		fi
+
+		dependency_check container
+
 		local currenttag=$imagetag  ##value from .env file
 		
 		if [[ $currenttag != $arg3 ]]; then ##edit .env file with new container version
@@ -224,6 +217,39 @@ function startup_mode {
 		fi
 	else
 		exit
+	fi
+}
+
+
+## Function that checks if required software dependencies are installed
+## call as: dependency_check <install_type>
+## args:
+## - install_type: container or native, which reads key value from .config
+function dependency_check {
+
+	local arg1=$1
+	## Cut after '=' sign, strip '(' and ')', replace all spaces with one space '// / /'
+	local dep_array=`grep "deps_$arg1=" $cf | $cut $cc | sed 's/(//' | sed 's/)//'` && dep_array=(${dep_array// / })
+	local elements=${#dep_array[@]}  ##How many software dependencies found
+
+        if [[ $elements > 0 ]]; then
+
+		echo -e "\nChecking software dependencies needed..." && sleep 1
+                echo -e "Running apt-get update..." && sleep 1
+                sudo $au update
+
+                for softpackage in "${dep_array[@]}"
+			do
+                        local result=`$dpkg -l $softpackage`
+
+                        if [[ ${#result} == 0 ]]; then
+                        	echo -e "$softpackage missing. Installing...\n" && sleep 1
+                                sudo $au install $softpackage
+                                echo
+                        else
+                                echo -e "$softpackage is installed...OK\n" && sleep 1
+                        fi
+                done
 	fi
 }
 
@@ -380,7 +406,7 @@ function check_waves_user {
 function set_api_hash {
 
 	if [[ $apipwd != "" ]]; then
-		echo -e "\nWaiting 15 seconds for API server start..." && sleep 15
+		echo -e "\nWaiting 20 seconds for API server start..." && sleep 20
 
 		apihash=`$curl -sd ${apipwd} -H "Accept: application/json" -X POST http://localhost:${apiport}/utils/hash/secure | sed 's/.*hash.*://;s/}//;s/\"//g'`
 		
